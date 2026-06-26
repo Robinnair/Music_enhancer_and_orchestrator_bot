@@ -51,11 +51,14 @@ def mix_tracks(song_name, analysis=None):
             weights.append(boost)
             print(f"  vocals weight: {boost} (energy={round(energy, 3)})")
         elif "bass" in name:
-            weights.append(1.1)
-        elif "drum" in name:
-            weights.append(0.9)
-        else:
             weights.append(1.0)
+            print(f"  bass weight: 1.0")
+        elif "drum" in name:
+            weights.append(2.5)
+            print(f"  drums weight: 2.5")
+        else:
+            weights.append(1.4)
+            print(f"  other weight: 1.4")
 
     weighted_stems = [s * w for s, w in zip(loaded_stems, weights)]
 
@@ -63,15 +66,16 @@ def mix_tracks(song_name, analysis=None):
 
     max_amp = np.max(np.abs(mixed))
     if max_amp > 0:
-        mixed = (mixed / max_amp) * 0.9
+        mixed = (mixed / max_amp) * 0.95
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     output_file = final_folder / f"{song_name}_{timestamp}_final_mix.wav"
 
     sf.write(output_file, mixed.T, sample_rate)
 
-    print("\nMix Complete")
+    print(f"\nMix Complete")
     print(f"Saved: {output_file}")
+    return str(output_file)
 
 
 if __name__ == "__main__":

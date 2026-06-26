@@ -1,84 +1,91 @@
-# Multi-Agent Polyphonic Song Reconstruction
+# E_skillveda_project — Multi-Agent Audio Restoration & YouTube Automation Pipeline
 
-A multi-agent audio processing pipeline that takes a low-quality mono recording
-and reconstructs a high-fidelity stereo version by separating instruments,
-applying frequency super-resolution, orchestrating stems, and producing a
-clean final mix.
+A fully autonomous AI music content pipeline that takes any song, restores and orchestrates it through six intelligent agents, generates a synchronized lyric video, and publishes it to YouTube Shorts automatically every day with zero human involvement after initial setup.
 
 ---
 
-## Problem
+## What It Does
 
-Low-quality mono recordings lose stereo width, contain noise, have missing high
-frequencies, and have instruments muddled together. This pipeline separates,
-restores, orchestrates, and reconstructs them into a clean stereo output.
+Every morning the pipeline wakes up, picks the next song from a queue, downloads it from YouTube, finds the most energetically interesting 59-second window, processes it through a multi-agent audio restoration system, fetches and translates lyrics, aligns them frame by frame using Whisper, generates a vertical waveform video, writes a unique RAG-powered description using Wikipedia and live web search, and uploads the finished video to YouTube Shorts automatically.
 
 ---
 
-## Architecture
+## Pipeline Architecture
 
 ```
-Input (Mono WAV/MP3)
+songs_queue.txt
         |
-   Analyser Agent          -> analysis.json
+DOWNLOADER AGENT
+  — Searches YouTube via yt-dlp
+  — Downloads best quality audio
+  — Converts stereo to mono
+  — Finds best 59-second energy window (skips intro/outro)
         |
-   Separator Agent         -> outputs/htdemucs/vocals, drums, bass, other
+ANALYSER AGENT
+  — Extracts tempo, energy, brightness, noise level
+  — Spectral rolloff and bandwidth analysis
+  — Outputs analysis.json used downstream by mixer
         |
-   Orchestration Agent     -> orchestration.json + EQ applied to stems
+ORCHESTRATION AGENT
+  — Maps stems to orchestral equivalents
+  — Bass to cello (Butterworth low pass 400Hz)
+  — Drums to timpani (Butterworth low pass 300Hz)
+  — Other to strings (Butterworth high pass 200Hz)
+  — Vocals unchanged
         |
-   Restoration Agent       -> outputs/restored/ (noise reduced + frequency restored)
+SEPARATOR AGENT
+  — Demucs htdemucs model
+  — Separates into vocals / drums / bass / other
         |
-   Stereo Agent            -> outputs/stereo/ (stereo stems via Haas effect)
+RESTORATION AGENT
+  — Vocals skip noise reduction entirely
+  — Other stems: 40% noisereduce
+  — All stems: Butterworth high shelf frequency super-resolution
         |
-   Mixer Agent             -> outputs/final/<songname>_<timestamp>_final_mix.wav
+STEREO AGENT
+  — Haas effect 20ms delay on right channel
+  — Vocals centered
+  — Instruments: natural stereo width
+        |
+MIXER AGENT
+  — Analysis-driven vocal boost (1.3x or 1.5x based on energy)
+  — Drums 2.5x, other 1.4x, bass 1.0x
+  — Normalized to 0.95x peak amplitude
+  — Timestamped output
+        |
+LYRICS AGENT
+  — Fetches from Genius API
+  — Auto-detects Japanese and Korean
+  — Batch translates to English via Ollama if needed
+  — Saves original and translated versions
+        |
+ALIGNMENT AGENT
+  — Whisper small model transcribes actual sung content
+  — Word-level timestamps mapped to lyric lines
+  — Fuzzy matching cleans up transcription
+  — Auto-detects instrumental tracks and skips
+        |
+VIDEO AGENT
+  — 1080x1920 vertical format (9:16 for Shorts)
+  — Animated mirrored green waveform
+  — Three-line scrolling lyrics (prev / current / next)
+  — Progress bar and timestamp
+  — FFmpeg encodes final MP4
+        |
+DESCRIPTION GENERATOR AGENT
+  — Wikipedia fetch for song and artist info
+  — DuckDuckGo search for TV and movie appearances
+  — FAISS RAG retrieves most relevant chunks
+  — Ollama generates unique human-sounding description
+  — Extracts pop culture hashtags automatically
+        |
+UPLOAD AGENT
+  — YouTube Data API v3
+  — OAuth 2.0 (one-time browser login, token saved)
+  — Uploads as public YouTube Short
+  — Marks song done in queue with URL and date
+  — Logs everything to scheduler.log
 ```
-
----
-
-## Agents
-
-### Analyser Agent (agents/analyser.py)
-Loads the audio and extracts musical features using Librosa. Outputs a JSON
-report containing tempo, sample rate, duration, energy, brightness, noise level,
-dynamic range, spectral rolloff, and spectral bandwidth. The analysis data is
-passed downstream to drive intelligent mixing decisions in the Mixer Agent.
-
-### Separator Agent (agents/separator.py)
-Uses Meta's Demucs (htdemucs model) to separate the audio into four stems:
-vocals, drums, bass, and other. Demucs is a state-of-the-art deep learning
-source separation model that outperforms older tools like Spleeter in both
-vocal preservation and instrument isolation.
-
-### Orchestration Agent (agents/orchestrator.py)
-Maps detected instruments to their orchestral equivalents and applies
-instrument-specific EQ to each stem to simulate orchestral timbre.
-Bass receives a cello EQ (low pass 400Hz with warmth boost).
-Drums receive a timpani EQ (low pass 300Hz with thump boost).
-Other instruments receive a strings EQ (high pass 200Hz to remove mud).
-Vocals are left completely untouched to preserve the original emotional nuance
-as specified in the brief. Saves an orchestration.json report.
-
-### Restoration Agent (agents/restoration.py)
-Cleans each separated stem. Vocals skip noise reduction entirely to preserve
-quality. Other stems are cleaned gently using noisereduce with 40% reduction
-strength to avoid over-processing. All stems then go through frequency
-super-resolution which uses a scipy Butterworth high shelf filter to restore
-missing high frequencies lost in the original low-quality mono recording.
-All stems are normalized to consistent volume.
-
-### Stereo Agent (agents/stereo.py)
-Converts mono stems to stereo. Vocals are kept centered with equal left and
-right channels to preserve natural placement. Instrument stems use the Haas
-effect (a 20ms delay on the right channel) to create natural stereo width
-without phase cancellation.
-
-### Mixer Agent (agents/mixer.py)
-Combines all stereo stems into a final mix using analysis-driven weighted
-summing. Vocal boost is dynamically adjusted based on the song's average energy
-from the analyser output (1.5x for quiet songs, 1.3x for louder songs). Bass
-is set to 1.1x and drums to 0.9x. Output is normalized with 0.9x headroom to
-prevent clipping. Each output file is timestamped so runs never overwrite
-each other.
 
 ---
 
@@ -86,39 +93,65 @@ each other.
 
 | Tool | Purpose | Why Chosen |
 |---|---|---|
-| Demucs | Source separation | Best open source model for music, actively maintained by Meta |
-| Librosa | Audio analysis | Industry standard for music feature extraction in Python |
+| Demucs | Source separation | Best open source model, maintained by Meta, hybrid architecture |
+| Librosa | Audio analysis | Industry standard for music feature extraction |
 | Noisereduce | Noise reduction | Effective spectral noise gating with controllable strength |
-| SciPy | Frequency restoration and EQ | Butterworth filters for high shelf and instrument-specific EQ |
-| Soundfile | Audio I/O | Reliable WAV read/write with full sample rate support |
-| NumPy | Signal processing | Fast array operations for audio manipulation |
+| SciPy | Butterworth filters | Maximally flat passband, frequencies kept are not distorted |
+| Whisper stable-ts | Lyric alignment | Word-level timestamps, runs locally, no API cost |
+| Matplotlib and FFmpeg | Video generation | Full control over rendering, no external dependencies |
+| LyricsGenius | Lyrics fetching | Free API, large database |
+| Wikipedia API | Song and artist info | Free, reliable, structured |
+| DuckDuckGo Search ddgs | Pop culture references | No API key required |
+| FAISS | Vector store for RAG | Fast similarity search, runs locally |
+| Ollama Llama 3.2 | Description generation and translation | Free, local, no API cost |
+| LangChain | RAG framework | Clean abstraction for retrieval and generation |
+| yt-dlp | Audio download | No API key, downloads best quality |
+| YouTube Data API v3 | Upload | Official API, OAuth authentication |
+| Windows Task Scheduler | Automation | Native Windows scheduling |
 
 ---
 
 ## Setup
 
 ```bash
-python -m venv venv
+git clone https://github.com/YOUR_USERNAME/E_skillveda_project.git
+cd E_skillveda_project
 
-venv\Scripts\activate
+python -m venv .venv
+.venv\Scripts\activate
 
 pip install -r requirements.txt
+
+ollama pull llama3.2
+ollama pull nomic-embed-text
 ```
+
+Place `client_secrets.json` from Google Cloud Console in the project root.
 
 ---
 
 ## Usage
 
-Place your mono WAV or MP3 file inside the input/ folder, then run:
-
+### Manual run on a specific file
 ```bash
-python main.py "input/your_song_mono.wav"
+python main.py "input/song_MONO.wav" "Artist Name"
 ```
 
-Output will be saved to:
-
+### Process and upload a specific song manually
+```bash
+python upload_video.py "outputs/final/song_video.mp4" "Song Name" "Artist Name"
 ```
-outputs/final/<your_song>_<timestamp>_final_mix.wav
+
+### Automated daily run
+```bash
+python scheduler.py
+```
+
+### Songs queue format
+```
+Megalovania|Toby Fox|done|2026-06-21|https://youtube.com/watch?v=...
+Dire Dire Docks|Koji Kondo|pending
+Creep|Radiohead|pending
 ```
 
 ---
@@ -127,33 +160,62 @@ outputs/final/<your_song>_<timestamp>_final_mix.wav
 
 ```
 E_skillveda_project/
-|
 |-- agents/
-|   |-- __init__.py
 |   |-- analyser.py
+|   |-- downloader.py
 |   |-- separator.py
+|   |-- orchestrator.py
 |   |-- restoration.py
 |   |-- stereo.py
-|   |-- orchestrator.py
 |   |-- mixer.py
-|
+|   |-- lyrics.py
+|   |-- aligner.py
+|   |-- video.py
+|   |-- description_generator.py
+|   |-- upload.py
 |-- input/
 |-- outputs/
 |   |-- final/
-|
 |-- main.py
+|-- scheduler.py
+|-- upload_video.py
+|-- songs_queue.txt
 |-- requirements.txt
 |-- README.md
-|-- analysis.json
-|-- orchestration.json
+|-- .gitignore
 ```
+
+---
+
+## Automation
+
+Set Windows Task Scheduler to run scheduler.py daily at 6AM:
+
+- Program: path to .venv/Scripts/python.exe
+- Arguments: scheduler.py
+- Start in: path to E_skillveda_project
+- Conditions: uncheck Stop if switching to battery power
+- Settings: check Run as soon as possible after scheduled start is missed
+
+---
+
+## Important
+
+Never commit these files to GitHub:
+- client_secrets.json contains your Google OAuth credentials
+- token.json contains your YouTube access token
+- input/ folder contains downloaded audio files
+- outputs/ folder contains generated files
+
+All are listed in .gitignore.
 
 ---
 
 ## Future Improvements
 
-- Neural audio super-resolution using AudioSR or similar transformer models
-- MIDI-based orchestral generation to synthesize real instrument sounds
-- Mid-side processing for more professional stereo imaging
-- LLM-powered orchestration agent for richer arrangement descriptions
-- Web interface for non-technical users
+- Neural audio super-resolution using AudioSR instead of Butterworth filters
+- MIDI-based orchestral synthesis using Basic Pitch by Spotify
+- Thumbnail generation for non-Shorts uploads
+- Web dashboard to monitor queue and view analytics
+- Support for multiple YouTube channels
+- Automatic language detection for aligner
