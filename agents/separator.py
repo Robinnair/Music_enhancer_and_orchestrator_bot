@@ -12,9 +12,12 @@ def separate_audio(audio_file):
     print(f"Input: {audio_file}")
 
     command = [
+        "python",
+        "-m",
         "demucs",
-        "--mp3",
-        "-o",
+        "-n",
+        "htdemucs_ft",
+        "--out",
         str(output_folder),
         str(audio_file)
     ]
