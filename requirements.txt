@@ -1,6 +1,44 @@
+# Core audio processing
 librosa
 numpy
 soundfile
 noisereduce
 demucs
 scipy
+
+# Lyrics and alignment
+lyricsgenius
+stable-ts
+openai-whisper
+
+# Video generation
+matplotlib
+ffmpeg-python
+
+# Downloading
+yt-dlp
+
+# Language detection and translation
+deep-translator
+langdetect
+
+# Web search and Wikipedia
+ddgs
+wikipedia-api
+
+# RAG and LLM
+langchain
+langchain-ollama
+langchain-community
+langchain-core
+faiss-cpu
+
+# YouTube upload
+google-auth
+google-auth-oauthlib
+google-api-python-client
+
+# Utilities
+python-docx
+requests
+langgraph
