@@ -92,7 +92,18 @@ def build_pipeline() -> StateGraph:
     graph.add_edge("separator", "restoration")
     graph.add_edge("restoration", "stereo")
     graph.add_edge("stereo", "mixer")
-    graph.add_edge("mixer", "lyrics")
+
+    def route_after_mixer(state: PipelineState) -> str:
+        genre = state.get("genre", "indie_alternative")
+        if genre in ["video_game_instrumental", "electronic"]:
+            return "video"
+        return "lyrics"
+
+    graph.add_conditional_edges(
+        "mixer",
+        route_after_mixer,
+        {"lyrics": "lyrics", "video": "video"}
+    )
 
     # Conditional after lyrics — skip aligner for instrumentals
     graph.add_conditional_edges(

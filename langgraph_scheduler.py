@@ -49,7 +49,7 @@ def clean_output_folders(project_root: Path):
         project_root / "outputs" / "restored",
         project_root / "outputs" / "stereo",
         project_root / "outputs" / "final",
-        project_root / "outputs" / "htdemucs",
+        project_root / "outputs" / "htdemucs_ft",
     ]:
         if folder.exists():
             try:
